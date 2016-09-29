@@ -1,4 +1,4 @@
-# MagicHomeController Version 1.1
+# MagicHomeController Version 0.3
 With this class you can control devices that are compatible with the "MagicHome" app
 
 Provided as is without warranty
