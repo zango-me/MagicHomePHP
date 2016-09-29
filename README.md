@@ -1,4 +1,4 @@
-# MagicHomeController Version 0.3
+# MagicHomeController Version 0.4
 With this class you can control devices that are compatible with the "MagicHome" app
 
 Provided as is without warranty
@@ -11,7 +11,7 @@ Provided as is without warranty
 * 4: Bulb (v.3-) (Higher numbers reserved for future use)
  
 
-    Example call: $controller1 = new MagicHomeController("192.168.2.102", 1);
+    Example call: $controller1 = new \Ace\MagicHome\Device("192.168.2.102", 1);
 
 **To start a test program call:**
 
@@ -76,4 +76,4 @@ A speed of 1 is fastest, and 24 is slowest.
     
 **There also is a wrapper class and a scan method for easier access to the data and searching for controllers**
 
-See "example.php" for usage
+See examples for usage

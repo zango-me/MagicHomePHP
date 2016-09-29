@@ -1,9 +1,13 @@
 <?php
-namespace MagicHome;
+namespace Ace\MagicHome;
 
-class MagicHomeException extends \Exception {}
 
-class MagicHomeController {
+/*
+ * ##################################
+ * # Controller Class for the logic #
+ * ##################################
+ */
+class Device {
     private static $apiPort = 5577;
     private static $delay = 50000; //microseconds
 
@@ -15,7 +19,7 @@ class MagicHomeController {
     public function __construct($deviceIp, $deviceType) {
         $this->deviceIp = $deviceIp;
         $this->deviceType = $deviceType;
-        if(!$this->connectToController()) throw new MagicHomeException("Could not connect to controller");
+        if(!$this->connectToController()) throw new MHException("Could not connect to controller");
     }
 
     public function __destruct() {
@@ -43,63 +47,63 @@ class MagicHomeController {
             case 0: //Update an RGB or an RGB+WW device
             case 1:
                 $message = [0x31,
-                    $this::checkNumberRange($r),
-                    $this::checkNumberRange($g),
-                    $this::checkNumberRange($b),
-                    $this::checkNumberRange($white1),
+                    Helper::checkNumberRange($r),
+                    Helper::checkNumberRange($g),
+                    Helper::checkNumberRange($b),
+                    Helper::checkNumberRange($white1),
                     0x00, 0x0f];
-                array_push($message, $this::calculateChecksum($message));
+                array_push($message, Helper::calculateChecksum($message));
                 $this->sendBytes($message);
                 break;
             case 2: //Update an RGB+WW+CW device
                 $message = [0x31,
-                    $this::checkNumberRange($r),
-                    $this::checkNumberRange($g),
-                    $this::checkNumberRange($b),
-                    $this::checkNumberRange($white1),
-                    $this::checkNumberRange($white2),
+                    Helper::checkNumberRange($r),
+                    Helper::checkNumberRange($g),
+                    Helper::checkNumberRange($b),
+                    Helper::checkNumberRange($white1),
+                    Helper::checkNumberRange($white2),
                     0x0f, 0x0f];
-                array_push($message, $this::calculateChecksum($message));
+                array_push($message, Helper::calculateChecksum($message));
                 $this->sendBytes($message);
                 break;
             case 3: //Update the white, or color, of a bulb
                 if($white1 !== null){
                     $message = [0x31, 0x00, 0x00, 0x00,
-                        $this::checkNumberRange($white1),
+                        Helper::checkNumberRange($white1),
                         0x0f, 0x0f];
-                    array_push($message, $this::calculateChecksum($message));
+                    array_push($message, Helper::calculateChecksum($message));
                     $this->sendBytes($message);
                 }else{
                     $message = [0x31,
-                        $this::checkNumberRange($r),
-                        $this::checkNumberRange($g),
-                        $this::checkNumberRange($b),
+                        Helper::checkNumberRange($r),
+                        Helper::checkNumberRange($g),
+                        Helper::checkNumberRange($b),
                         0x00, 0xf0, 0x0f];
-                    array_push($message, $this::calculateChecksum($message));
+                    array_push($message, Helper::calculateChecksum($message));
                     $this->sendBytes($message);
                 }
                 break;
             case 4: //Update the white, or color, of a legacy bulb
                 if($white1 !== null){
                     $message = [0x56, 0x00, 0x00, 0x00,
-                        $this::checkNumberRange($white1),
+                        Helper::checkNumberRange($white1),
                         0x0f, 0xaa, 0x56, 0x00, 0x00, 0x00,
-                        $this::checkNumberRange($white1),
+                        Helper::checkNumberRange($white1),
                         0x0f, 0xaa];
-                    array_push($message, $this::calculateChecksum($message));
+                    array_push($message, Helper::calculateChecksum($message));
                     $this->sendBytes($message);
                 }else{
                     $message = [0x56,
-                        $this::checkNumberRange($r),
-                        $this::checkNumberRange($g),
-                        $this::checkNumberRange($b),
+                        Helper::checkNumberRange($r),
+                        Helper::checkNumberRange($g),
+                        Helper::checkNumberRange($b),
                         0x00, 0xf0, 0xaa];
-                    array_push($message, $this::calculateChecksum($message));
+                    array_push($message, Helper::calculateChecksum($message));
                     $this->sendBytes($message);
                 }
                 break;
             default:
-                throw new MagicHomeException("Incompatible device type received");
+                throw new MHException("Incompatible device type received");
         }
     }
 
@@ -117,7 +121,7 @@ class MagicHomeController {
             $this->sendBytes([0xBB, $presetNumber, $speed, 0x44]);
         } else {
             $message = [0x61, $presetNumber, $speed, 0x0F];
-            array_push($message, $this::calculateChecksum($message));
+            array_push($message, Helper::calculateChecksum($message));
             $this->sendBytes($message);
         }
     }
@@ -129,11 +133,11 @@ class MagicHomeController {
                 return false;
             } else {
                 //14 byte answer
-                $message = $this::packMessage([0x81, 0x8A, 0x8B, 0x96]);
+                $message = Helper::packMessage([0x81, 0x8A, 0x8B, 0x96]);
                 socket_write($this->socket, $message, strlen($message));
                 $buffer = '';
                 socket_recv($this->socket, $buffer, 14, MSG_WAITALL);
-                $data = $this::String2HexArray($buffer);
+                $data = Helper::String2HexArray($buffer);
                 //var_dump($data);
                 $on = $data[2] == "23"; //0x23 == on / 0x24 == off
                 $mode = hexdec($data[3]);
@@ -155,30 +159,12 @@ class MagicHomeController {
         }catch (\Exception $ex){
             //error sending command
             if($this->connectToController()) return $this->getStatus();
-            else throw new MagicHomeException("Could not connect to controller");
+            else throw new MHException("Could not connect to controller");
         }
     }
 
-    private static function checkNumberRange($number) {
-        if($number < 0)
-            return 0;
-        elseif ($number > 255)
-            return 255;
-        else
-            return $number;
-    }
-
-    private static function calculateChecksum(Array $bytes) {
-        return array_sum($bytes) & 0xFF; //Try with PHP array_sum for Python sum
-    }
-
-    private static function packMessage($bytes){
-        $message_length = sizeof($bytes);
-        return pack("C".$message_length, ...$bytes);
-    }
-
     private function sendBytes(Array $bytes) {
-        $message = $this::packMessage($bytes);
+        $message = Helper::packMessage($bytes);
         try {
             socket_write($this->socket, $message, strlen($message));
             socket_read($this->socket, 2048);
@@ -186,7 +172,7 @@ class MagicHomeController {
         } catch (\Exception $ex) {
             //error sending command
             if($this->connectToController()) $this->sendBytes($bytes);
-            else throw new MagicHomeException("Could not connect to controller");
+            else throw new MHException("Could not connect to controller");
         }
     }
 
@@ -200,13 +186,6 @@ class MagicHomeController {
         }
     }
 
-    private static function String2HexArray($string){
-        $hex=[];
-        for ($i=0; $i < strlen($string); $i++){
-            $hex[] = dechex(ord($string[$i]));
-        }
-        return $hex;
-    }
 
     public function test(){
         //Runs an automatic test
@@ -227,10 +206,62 @@ class MagicHomeController {
         usleep(5000000);
         $this->updateDevice(255,255,255,255,255); //W+WW+CW
         usleep(2000000);
+        $this->updateDevice(0,0,0); //Dark
         $this->turnOff(); //Off
     }
 
-    public static function scan($timeout = 4) {
+}
+
+
+
+
+
+/*
+ * ########################################
+ * # MHException Class for own Exceptions #
+ * #        Noting special at all         #
+ * ########################################
+ */
+class MHException extends \Exception {}
+
+
+
+
+
+/*
+ * ######################################################
+ * # Helper Class for Static functions and network scan #
+ * ######################################################
+ */
+class Helper extends Device {
+
+    protected static function checkNumberRange($number) {
+        if($number < 0)
+            return 0;
+        elseif ($number > 255)
+            return 255;
+        else
+            return $number;
+    }
+
+    protected static function calculateChecksum(Array $bytes) {
+        return array_sum($bytes) & 0xFF; //Try with PHP array_sum for Python sum
+    }
+
+    protected static function packMessage($bytes){
+        $message_length = count($bytes);
+        return pack("C".$message_length, ...$bytes);
+    }
+
+    protected static function String2HexArray($string){
+        $hex=[];
+        for ($i=0; $i < strlen($string); $i++){
+            $hex[] = dechex(ord($string[$i]));
+        }
+        return $hex;
+    }
+
+    public static function scan($broadcast = "255.255.255.255", $timeout = 5) {
         $discoveryPort = 48899;
         $sock = socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
         socket_set_option($sock, SOL_SOCKET, SO_BROADCAST, 1);
@@ -239,7 +270,7 @@ class MagicHomeController {
         $responseList = [];
         while (true){
             if (time() > $quitTime) break;
-            socket_sendto($sock, $message, strlen($message), MSG_DONTROUTE, '192.168.2.255', $discoveryPort);
+            socket_sendto($sock, $message, strlen($message), MSG_DONTROUTE, $broadcast, $discoveryPort);
             while (true){
                 if (time() > $quitTime) break;
                 socket_set_option($sock,SOL_SOCKET, SO_RCVTIMEO, array("sec"=>0, "usec"=>200000));
@@ -264,12 +295,50 @@ class MagicHomeController {
         return $responseList;
     }
 
+    public static function findIpByMac($mac = "", $broadcast = "255.255.255.255", $timeout = 5) {
+        if(strlen($mac) == 12){
+            $discoveryPort = 48899;
+            $sock = socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
+            socket_set_option($sock, SOL_SOCKET, SO_BROADCAST, 1);
+            $message = self::packMessage([0x48, 0x46, 0x2d, 0x41, 0x31, 0x31, 0x41, 0x53, 0x53, 0x49, 0x53, 0x54, 0x48, 0x52, 0x45, 0x41, 0x44]);
+            $quitTime = time() + $timeout;
+            while (true){
+                if (time() > $quitTime) break;
+                socket_sendto($sock, $message, strlen($message), MSG_DONTROUTE, $broadcast, $discoveryPort);
+                while (true){
+                    if (time() > $quitTime) break;
+                    socket_set_option($sock,SOL_SOCKET, SO_RCVTIMEO, array("sec"=>0, "usec"=>200000));
+                    $data = @socket_read($sock, 64);
+                    if($data == ''){
+                        $data = null;
+                        break;
+                    }
+                    if($data != null && $data != $message){
+                        $data = explode(",", $data);
+                        if($data[1] == strtoupper($mac)) return (string)$data[0];
+                    }
+                }
+            }
+            return false;
+        }else{
+            throw new MHException("Not a valid MAC");
+        }
+    }
+
 }
 
 
-class MagicHomeWrapper {
+
+
+
+/*
+ * ################################
+ * # Wrapper Class for easy usage #
+ * ################################
+ */
+class Wrapper {
     /**
-     * @var MagicHomeController $controller
+     * @var Device $controller
      */
     private $controller;
 
@@ -286,7 +355,7 @@ class MagicHomeWrapper {
     private $b;
     private $w1;
 
-    public function __construct(MagicHomeController $controller) {
+    public function __construct(Device $controller) {
         $this->controller = $controller;
         $this->readControllerStatus();
     }
@@ -303,7 +372,7 @@ class MagicHomeWrapper {
             $this->w1 = $data['w1'];
             $this->lastRefreshed = microtime();
             return true;
-        }catch (MagicHomeException $ex){
+        }catch (MHException $ex){
             return false;
         }
     }
@@ -314,7 +383,7 @@ class MagicHomeWrapper {
      * @return bool
      * @param bool $on
      */
-    public function setOn($on)
+    public function setPower($on)
     {
         try {
             if($on) {
@@ -324,7 +393,7 @@ class MagicHomeWrapper {
             }
             $this->on = $on;
             return true;
-        }catch (MagicHomeException $ex) {
+        }catch (MHException $ex) {
             return false;
         }
     }
@@ -341,7 +410,7 @@ class MagicHomeWrapper {
             $this->mode = $mode;
             $this->speed = $speed;
             return true;
-        }catch (MagicHomeException $ex) {
+        }catch (MHException $ex) {
             return false;
         }
     }
@@ -356,7 +425,7 @@ class MagicHomeWrapper {
             $this->controller->updateDevice($r, $this->g, $this->b, $this->w1);
             $this->r = $r;
             return true;
-        }catch (MagicHomeException $ex) {
+        }catch (MHException $ex) {
             return false;
         }
     }
@@ -371,7 +440,7 @@ class MagicHomeWrapper {
             $this->controller->updateDevice($this->r, $g, $this->b, $this->w1);
             $this->g = $g;
             return true;
-        }catch (MagicHomeException $ex) {
+        }catch (MHException $ex) {
             return false;
         }
     }
@@ -386,7 +455,7 @@ class MagicHomeWrapper {
             $this->controller->updateDevice($this->r, $this->g, $b, $this->w1);
             $this->b = $b;
             return true;
-        }catch (MagicHomeException $ex) {
+        }catch (MHException $ex) {
             return false;
         }
     }
@@ -401,7 +470,7 @@ class MagicHomeWrapper {
             $this->controller->updateDevice($this->r, $this->g, $this->b, $w1);
             $this->w1 = $w1;
             return true;
-        }catch (MagicHomeException $ex) {
+        }catch (MHException $ex) {
             return false;
         }
     }
@@ -409,9 +478,9 @@ class MagicHomeWrapper {
 
 
     /**
-     * @return MagicHomeController
+     * @return Device
      */
-    public function getController()
+    public function getDevice()
     {
         return $this->controller;
     }
@@ -419,7 +488,7 @@ class MagicHomeWrapper {
     /**
      * @return bool
      */
-    public function getOn()
+    public function getPower()
     {
         return $this->on;
     }
